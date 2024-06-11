@@ -5,11 +5,16 @@ pipeline {
       args '--user root -v /var/run/docker.sock:/var/run/docker.sock' // mount Docker socket to access the host's Docker daemon
     }
   }
+  options {
+    // Discard old builds to save space
+    buildDiscarder(logRotator(numToKeepStr: '10'))  // Keeps only the last 10 builds
+    // Timeout for the pipeline to prevent long-running builds
+    timeout(time: 1, unit: 'HOURS')  // Ensures the pipeline doesn't run indefinitely
+  }
   stages {
     stage('Checkout') {
       steps {
         sh 'echo passed'
-        // Uncomment and customize the following line to checkout your repository
         // git branch: 'main', url: 'https://github.com/mkitbloo/devops-jenkins.git'
       }
     }
@@ -22,7 +27,7 @@ pipeline {
     }
     stage('Static Code Analysis') {
       environment {
-        SONAR_URL = "http://3.106.127.141:9000"
+        SONAR_URL = "http://3.106.192.1:9000"
       }
       steps {
         withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
@@ -62,6 +67,19 @@ pipeline {
           '''
         }
       }
+    }
+    stage('Cleanup') {  // Added cleanup stage
+      steps {
+        cleanWs() // Clean the workspace after the build
+      }
+    }
+  }
+  post {
+    always {
+      archiveArtifacts artifacts: 'spring-boot-app/target/*.jar', allowEmptyArchive: true  // Archive build artifacts
+      mail to: 'mariechoi@gmail.com',  // Send email notification
+           subject: "Jenkins Build ${currentBuild.fullDisplayName}",
+           body: "Build ${currentBuild.fullDisplayName} finished with status: ${currentBuild.currentResult}"
     }
   }
 }
